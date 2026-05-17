@@ -28,15 +28,27 @@ public struct URLRoutingSummary: Equatable, Sendable {
 public actor URLRouter {
   private let detector: SafariWindowDetecting
   private let opener: SafariOpening
+  private let didEnqueueRoute: (@Sendable (Int) -> Void)?
   private var isEnabled: Bool
+  private var routeEnqueueCount = 0
   // FIFO barrier across actor reentrancy points; each route waits for the prior
   // route's detector/opener work to finish before starting its own.
   private var routingTail: Task<Void, Never>?
 
   public init(detector: SafariWindowDetecting, opener: SafariOpening, isEnabled: Bool = true) {
+    self.init(detector: detector, opener: opener, isEnabled: isEnabled, didEnqueueRoute: nil)
+  }
+
+  init(
+    detector: SafariWindowDetecting,
+    opener: SafariOpening,
+    isEnabled: Bool = true,
+    didEnqueueRoute: (@Sendable (Int) -> Void)?
+  ) {
     self.detector = detector
     self.opener = opener
     self.isEnabled = isEnabled
+    self.didEnqueueRoute = didEnqueueRoute
   }
 
   public func setEnabled(_ isEnabled: Bool) {
@@ -64,6 +76,8 @@ public actor URLRouter {
     routingTail = Task {
       _ = await routingTask.value
     }
+    routeEnqueueCount += 1
+    didEnqueueRoute?(routeEnqueueCount)
 
     return await routingTask.value
   }

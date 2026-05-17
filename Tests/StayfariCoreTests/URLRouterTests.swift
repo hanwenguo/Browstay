@@ -91,6 +91,34 @@ private final class BlockingSafariOpener: SafariOpening {
   }
 }
 
+private actor RouteEnqueueProbe {
+  private var latestCount = 0
+  private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+  func record(_ count: Int) {
+    latestCount = max(latestCount, count)
+    resumeSatisfiedWaiters()
+  }
+
+  func waitForCount(_ count: Int) async {
+    if latestCount >= count {
+      return
+    }
+
+    await withCheckedContinuation { continuation in
+      waiters.append((count: count, continuation: continuation))
+    }
+  }
+
+  private func resumeSatisfiedWaiters() {
+    let readyWaiters = waiters.filter { latestCount >= $0.count }
+    waiters.removeAll { latestCount >= $0.count }
+    for waiter in readyWaiters {
+      waiter.continuation.resume()
+    }
+  }
+}
+
 final class URLRouterTests: XCTestCase {
   @MainActor
   func testVisibleSafariWindowUsesNormalOpening() async throws {
@@ -188,9 +216,15 @@ final class URLRouterTests: XCTestCase {
   @MainActor
   func testConcurrentHandleCallsDoNotOverlapAndCompleteInSubmissionOrder() async throws {
     let opener = BlockingSafariOpener()
+    let enqueueProbe = RouteEnqueueProbe()
     let router = URLRouter(
       detector: StubSafariWindowDetector(hasVisibleWindow: true),
-      opener: opener
+      opener: opener,
+      didEnqueueRoute: { count in
+        Task {
+          await enqueueProbe.record(count)
+        }
+      }
     )
 
     let firstTask = Task {
@@ -203,7 +237,7 @@ final class URLRouterTests: XCTestCase {
       await router.handle([URL(string: "https://second.example")!])
     }
 
-    await assertNoAdditionalOpenStarts(on: opener)
+    await enqueueProbe.waitForCount(2)
     XCTAssertEqual(opener.events, ["start:https://first.example"])
     XCTAssertEqual(opener.maximumActiveOpenCalls, 1)
 
@@ -265,22 +299,5 @@ final class URLRouterTests: XCTestCase {
     XCTAssertEqual(summary.actions, [
       .failed(url, reason: "TestRoutingError()")
     ])
-  }
-
-  @MainActor
-  private func assertNoAdditionalOpenStarts(
-    on opener: BlockingSafariOpener,
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) async {
-    // Let the second handle call enqueue on URLRouter. Any overlap is detected
-    // by BlockingSafariOpener immediately and reflected in the event log.
-    await Task.yield()
-    if opener.events != ["start:https://first.example"] {
-      XCTFail("Second open started before the first completed: \(opener.events)", file: file, line: line)
-    }
-    if opener.maximumActiveOpenCalls != 1 {
-      XCTFail("Open calls overlapped", file: file, line: line)
-    }
   }
 }
