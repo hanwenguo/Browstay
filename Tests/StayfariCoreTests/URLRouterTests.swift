@@ -9,10 +9,10 @@ private final class SpySafariOpener: SafariOpening {
   var normalError: Error?
 
   func openNormally(_ urls: [WebURL]) async throws {
+    normalBatches.append(urls)
     if let normalError {
       throw normalError
     }
-    normalBatches.append(urls)
   }
 
   func openInNewWindow(_ url: WebURL) async throws {
@@ -40,12 +40,17 @@ private final class BlockingSafariOpener: SafariOpening {
 
   private var activeOpenCalls = 0
   private var continuations: [CheckedContinuation<Void, Never>] = []
+  private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
   func openNormally(_ urls: [WebURL]) async throws {
     let url = urls[0].url.absoluteString
     activeOpenCalls += 1
     maximumActiveOpenCalls = max(maximumActiveOpenCalls, activeOpenCalls)
+    if activeOpenCalls > 1 {
+      XCTFail("URL routing opened multiple batches concurrently")
+    }
     events.append("start:\(url)")
+    resumeSatisfiedStartWaiters()
 
     await withCheckedContinuation { continuation in
       continuations.append(continuation)
@@ -61,6 +66,28 @@ private final class BlockingSafariOpener: SafariOpening {
 
   func resumeNextOpen() {
     continuations.removeFirst().resume()
+  }
+
+  func waitForOpenStart(count: Int) async {
+    if openStartCount >= count {
+      return
+    }
+
+    await withCheckedContinuation { continuation in
+      startWaiters.append((count: count, continuation: continuation))
+    }
+  }
+
+  private var openStartCount: Int {
+    events.filter { $0.hasPrefix("start:") }.count
+  }
+
+  private func resumeSatisfiedStartWaiters() {
+    let readyWaiters = startWaiters.filter { openStartCount >= $0.count }
+    startWaiters.removeAll { openStartCount >= $0.count }
+    for waiter in readyWaiters {
+      waiter.continuation.resume()
+    }
   }
 }
 
@@ -169,21 +196,20 @@ final class URLRouterTests: XCTestCase {
     let firstTask = Task {
       await router.handle([URL(string: "https://first.example")!])
     }
-    await waitUntil { opener.events == ["start:https://first.example"] }
+    await opener.waitForOpenStart(count: 1)
+    XCTAssertEqual(opener.events, ["start:https://first.example"])
 
     let secondTask = Task {
       await router.handle([URL(string: "https://second.example")!])
     }
-    for _ in 0..<10 {
-      await Task.yield()
-    }
 
+    await assertNoAdditionalOpenStarts(on: opener)
     XCTAssertEqual(opener.events, ["start:https://first.example"])
     XCTAssertEqual(opener.maximumActiveOpenCalls, 1)
 
     opener.resumeNextOpen()
     let firstSummary = await firstTask.value
-    await waitUntil { opener.events.contains("start:https://second.example") }
+    await opener.waitForOpenStart(count: 2)
     opener.resumeNextOpen()
     let secondSummary = await secondTask.value
 
@@ -235,23 +261,26 @@ final class URLRouterTests: XCTestCase {
     let url = URL(string: "https://failure.example")!
     let summary = await router.handle([url])
 
+    XCTAssertEqual(opener.normalBatches.map { $0.map(\.url.absoluteString) }, [["https://failure.example"]])
     XCTAssertEqual(summary.actions, [
       .failed(url, reason: "TestRoutingError()")
     ])
   }
 
   @MainActor
-  private func waitUntil(
-    _ condition: @escaping @MainActor () -> Bool,
+  private func assertNoAdditionalOpenStarts(
+    on opener: BlockingSafariOpener,
     file: StaticString = #filePath,
     line: UInt = #line
   ) async {
-    for _ in 0..<100 {
-      if condition() {
-        return
-      }
-      await Task.yield()
+    // Let the second handle call enqueue on URLRouter. Any overlap is detected
+    // by BlockingSafariOpener immediately and reflected in the event log.
+    await Task.yield()
+    if opener.events != ["start:https://first.example"] {
+      XCTFail("Second open started before the first completed: \(opener.events)", file: file, line: line)
     }
-    XCTFail("Timed out waiting for condition", file: file, line: line)
+    if opener.maximumActiveOpenCalls != 1 {
+      XCTFail("Open calls overlapped", file: file, line: line)
+    }
   }
 }

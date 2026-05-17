@@ -29,6 +29,8 @@ public actor URLRouter {
   private let detector: SafariWindowDetecting
   private let opener: SafariOpening
   private var isEnabled: Bool
+  // FIFO barrier across actor reentrancy points; each route waits for the prior
+  // route's detector/opener work to finish before starting its own.
   private var routingTail: Task<Void, Never>?
 
   public init(detector: SafariWindowDetecting, opener: SafariOpening, isEnabled: Bool = true) {
