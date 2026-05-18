@@ -23,6 +23,14 @@ Expected:
 
 ## Link Routing Scenarios
 
+For each scenario, open the test URL through the configured default handler from another app, not from Safari itself. For example, run:
+
+```bash
+open https://www.apple.com/
+```
+
+If testing Automation denied, run that scenario before any scenario that may need Safari automation, or reset Stayfari's Automation permission in System Settings before running it.
+
 1. Safari not running:
    - Quit Safari.
    - Open `https://www.apple.com/` from another app.
