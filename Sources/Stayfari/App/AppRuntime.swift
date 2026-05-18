@@ -13,6 +13,10 @@ final class AppRuntime {
 
   private let router: URLRouter
   private let defaultBrowserManager: DefaultBrowserManager
+  @ObservationIgnored
+  private var runtimeTail: Task<Void, Never>?
+  @ObservationIgnored
+  private var runtimeCommandGeneration = 0
 
   init(
     router: URLRouter,
@@ -37,10 +41,11 @@ final class AppRuntime {
   }
 
   func setEnabled(_ isEnabled: Bool) {
-    self.isEnabled = isEnabled
-    Task {
+    let router = self.router
+    enqueueRuntimeCommand {
       await router.setEnabled(isEnabled)
     }
+    self.isEnabled = isEnabled
   }
 
   func refreshDefaultBrowserStatus() {
@@ -62,9 +67,34 @@ final class AppRuntime {
   }
 
   func handleIncomingURLs(_ urls: [URL]) {
-    Task {
+    let router = self.router
+    enqueueRuntimeCommand { [weak self] in
       let summary = await router.handle(urls)
-      lastEventSummary = DiagnosticsFormatter.describe(summary)
+      self?.lastEventSummary = DiagnosticsFormatter.describe(summary)
     }
+  }
+
+  func waitForRuntimeCommands() async {
+    await runtimeTail?.value
+  }
+
+  private func enqueueRuntimeCommand(_ operation: @escaping @MainActor () async -> Void) {
+    let previousCommand = runtimeTail
+    runtimeCommandGeneration += 1
+    let generation = runtimeCommandGeneration
+
+    let command = Task { @MainActor [weak self] in
+      if let previousCommand {
+        await previousCommand.value
+      }
+
+      await operation()
+
+      if self?.runtimeCommandGeneration == generation {
+        self?.runtimeTail = nil
+      }
+    }
+
+    runtimeTail = command
   }
 }

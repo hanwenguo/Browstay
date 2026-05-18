@@ -23,6 +23,11 @@ let package = Package(
       name: "StayfariCoreTests",
       dependencies: ["StayfariCore"],
       path: "Tests/StayfariCoreTests"
+    ),
+    .testTarget(
+      name: "StayfariTests",
+      dependencies: ["Stayfari", "StayfariCore"],
+      path: "Tests/StayfariTests"
     )
   ]
 )
