@@ -25,6 +25,7 @@ public struct CoreGraphicsWindowSnapshotProvider: WindowSnapshotProviding {
 
     let alpha = (dictionary[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
     let name = dictionary[kCGWindowName as String] as? String
+    // Missing onscreen metadata defaults to true because snapshots come from .optionOnScreenOnly.
     let isOnscreen = (dictionary[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? true
     let pidNumber = dictionary[kCGWindowOwnerPID as String] as? NSNumber
     let processIdentifier = pidNumber.map { pid_t($0.int32Value) }
