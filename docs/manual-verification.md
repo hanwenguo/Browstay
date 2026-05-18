@@ -53,8 +53,9 @@ If testing Automation denied, run that scenario before any scenario that may nee
    - Expected: Stayfari creates a regular Safari window for the link or falls back to normal opening.
 
 5. Automation denied:
+   - Ensure no Safari window is visible on the current Desktop.
+   - Open `https://www.apple.com/` from Terminal or another non-Safari app, for example: `open https://www.apple.com/`.
    - Deny the macOS prompt when Stayfari asks to control Safari.
-   - Open `https://www.apple.com/` from another app.
    - Expected: The link opens normally in Safari and the menu status mentions fallback.
 
 6. Multiple displays:
