@@ -1,9 +1,5 @@
 import CoreGraphics
 
-public protocol WindowSnapshotProviding: Sendable {
-  func currentOnScreenWindows() -> [WindowInfo]
-}
-
 public struct SafariWindowDetector: SafariWindowDetecting {
   private let snapshotProvider: WindowSnapshotProviding
 
