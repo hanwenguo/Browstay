@@ -27,53 +27,53 @@ private final class FakeLaunchServicesClient: LaunchServicesClient {
 final class DefaultBrowserManagerTests: XCTestCase {
   func testReadsHTTPAndHTTPSStatus() {
     let client = FakeLaunchServicesClient()
-    let manager = DefaultBrowserManager(ownBundleIdentifier: "com.hanwen.Stayfari", launchServicesClient: client)
+    let manager = DefaultBrowserManager(ownBundleIdentifier: "io.hanwen.Browstay", launchServicesClient: client)
 
     let status = manager.status()
 
     XCTAssertEqual(status.map(\.scheme), [.http, .https])
     XCTAssertEqual(status.map(\.currentHandler), ["com.apple.Safari", "com.apple.Safari"])
-    XCTAssertEqual(status.map(\.isStayfari), [false, false])
+    XCTAssertEqual(status.map(\.isBrowstay), [false, false])
   }
 
-  func testSetsStayfariForBothSchemes() {
+  func testSetsBrowstayForBothSchemes() {
     let client = FakeLaunchServicesClient()
-    let manager = DefaultBrowserManager(ownBundleIdentifier: "com.hanwen.Stayfari", launchServicesClient: client)
+    let manager = DefaultBrowserManager(ownBundleIdentifier: "io.hanwen.Browstay", launchServicesClient: client)
 
-    let results = manager.setStayfariAsDefault()
+    let results = manager.setBrowstayAsDefault()
 
     XCTAssertEqual(client.setCalls.map(\.scheme), ["http", "https"])
-    XCTAssertEqual(client.setCalls.map(\.handler), ["com.hanwen.Stayfari", "com.hanwen.Stayfari"])
+    XCTAssertEqual(client.setCalls.map(\.handler), ["io.hanwen.Browstay", "io.hanwen.Browstay"])
     XCTAssertEqual(results.map(\.succeeded), [true, true])
   }
 
-  func testSettingStayfariReportsPartialFailuresAndKeepsFailedHandlerUnchanged() {
+  func testSettingBrowstayReportsPartialFailuresAndKeepsFailedHandlerUnchanged() {
     let client = FakeLaunchServicesClient()
     let failureStatus: OSStatus = -10814
     client.statusesByScheme = [
       "http": noErr,
       "https": failureStatus
     ]
-    let manager = DefaultBrowserManager(ownBundleIdentifier: "com.hanwen.Stayfari", launchServicesClient: client)
+    let manager = DefaultBrowserManager(ownBundleIdentifier: "io.hanwen.Browstay", launchServicesClient: client)
 
-    let results = manager.setStayfariAsDefault()
+    let results = manager.setBrowstayAsDefault()
 
     XCTAssertEqual(client.setCalls.map(\.scheme), ["http", "https"])
-    XCTAssertEqual(client.setCalls.map(\.handler), ["com.hanwen.Stayfari", "com.hanwen.Stayfari"])
+    XCTAssertEqual(client.setCalls.map(\.handler), ["io.hanwen.Browstay", "io.hanwen.Browstay"])
     XCTAssertEqual(results.map(\.scheme), [.http, .https])
     XCTAssertEqual(results.map(\.status), [noErr, failureStatus])
     XCTAssertEqual(results.map(\.succeeded), [true, false])
-    XCTAssertEqual(client.handlers["http"]!, "com.hanwen.Stayfari")
+    XCTAssertEqual(client.handlers["http"]!, "io.hanwen.Browstay")
     XCTAssertEqual(client.handlers["https"]!, "com.apple.Safari")
   }
 
-  func testRestoresSafariForBothSchemes() {
+  func testRestoresSelectedBrowserForBothSchemes() {
     let client = FakeLaunchServicesClient()
-    let manager = DefaultBrowserManager(ownBundleIdentifier: "com.hanwen.Stayfari", launchServicesClient: client)
+    let manager = DefaultBrowserManager(ownBundleIdentifier: "io.hanwen.Browstay", launchServicesClient: client)
 
-    let results = manager.restoreSafariAsDefault()
+    let results = manager.restoreDefault(to: .orion)
 
-    XCTAssertEqual(client.setCalls.map(\.handler), ["com.apple.Safari", "com.apple.Safari"])
+    XCTAssertEqual(client.setCalls.map(\.handler), ["com.kagi.kagimacOS", "com.kagi.kagimacOS"])
     XCTAssertEqual(results.map(\.scheme), [.http, .https])
   }
 }

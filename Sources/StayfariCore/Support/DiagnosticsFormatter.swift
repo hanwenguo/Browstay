@@ -26,7 +26,7 @@ public enum DiagnosticsFormatter {
     statuses
       .map { status in
         let scheme = status.scheme.rawValue.uppercased()
-        let handler = status.isStayfari ? StayfariVersion.appName : (status.currentHandler ?? "none")
+        let handler = status.isBrowstay ? "Browstay" : (status.currentHandler ?? "none")
         return "\(scheme): \(handler)"
       }
       .joined(separator: ", ")

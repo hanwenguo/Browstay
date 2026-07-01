@@ -10,10 +10,10 @@ final class DiagnosticsFormatterTests: XCTestCase {
 
   func testDescribesNewWindowRoutingSummary() {
     let message = DiagnosticsFormatter.describe(URLRoutingSummary(actions: [
-      .openedNewWindow(URL(string: "https://example.com")!, browser: .safari)
+      .openedNewWindow(URL(string: "https://example.com")!, browser: .orion)
     ]))
 
-    XCTAssertEqual(message, "Opened new Safari window: https://example.com")
+    XCTAssertEqual(message, "Opened new Orion window: https://example.com")
   }
 
   func testDescribesRejectedRoutingSummary() {
@@ -56,18 +56,27 @@ final class DiagnosticsFormatterTests: XCTestCase {
     XCTAssertEqual(message, "Open failed: https://example.com (Automation denied)")
   }
 
+  func testDescribesUnavailableBrowserWithoutIncludingURL() {
+    let message = DiagnosticsFormatter.describe(URLRoutingSummary(actions: [
+      .browserUnavailable(URL(string: "https://private.example/path")!, browser: .helium)
+    ]))
+
+    XCTAssertEqual(message, "Helium is unavailable")
+    XCTAssertFalse(message.contains("private.example"))
+  }
+
   func testDescribesDefaultBrowserStatus() {
     let message = DiagnosticsFormatter.describeDefaultBrowserStatus([
-      SchemeHandlerStatus(scheme: .http, currentHandler: "com.hanwen.Stayfari", isStayfari: true),
-      SchemeHandlerStatus(scheme: .https, currentHandler: "com.apple.Safari", isStayfari: false)
+      SchemeHandlerStatus(scheme: .http, currentHandler: "io.hanwen.Browstay", isBrowstay: true),
+      SchemeHandlerStatus(scheme: .https, currentHandler: "com.apple.Safari", isBrowstay: false)
     ])
 
-    XCTAssertEqual(message, "HTTP: Stayfari, HTTPS: com.apple.Safari")
+    XCTAssertEqual(message, "HTTP: Browstay, HTTPS: com.apple.Safari")
   }
 
   func testDescribesDefaultBrowserStatusWithNoHandler() {
     let message = DiagnosticsFormatter.describeDefaultBrowserStatus([
-      SchemeHandlerStatus(scheme: .https, currentHandler: nil, isStayfari: false)
+      SchemeHandlerStatus(scheme: .https, currentHandler: nil, isBrowstay: false)
     ])
 
     XCTAssertEqual(message, "HTTPS: none")
@@ -75,8 +84,8 @@ final class DiagnosticsFormatterTests: XCTestCase {
 
   func testDescribesSetResults() {
     let message = DiagnosticsFormatter.describeSetResults([
-      SchemeSetResult(scheme: .http, requestedHandler: "com.hanwen.Stayfari", status: noErr),
-      SchemeSetResult(scheme: .https, requestedHandler: "com.hanwen.Stayfari", status: -1)
+      SchemeSetResult(scheme: .http, requestedHandler: "io.hanwen.Browstay", status: noErr),
+      SchemeSetResult(scheme: .https, requestedHandler: "io.hanwen.Browstay", status: -1)
     ])
 
     XCTAssertEqual(message, "HTTP: OK, HTTPS: OSStatus -1")

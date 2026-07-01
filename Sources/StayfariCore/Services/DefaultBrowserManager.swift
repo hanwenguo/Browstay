@@ -9,7 +9,7 @@ public enum BrowserScheme: String, CaseIterable, Sendable {
 public struct SchemeHandlerStatus: Equatable, Sendable {
   public let scheme: BrowserScheme
   public let currentHandler: String?
-  public let isStayfari: Bool
+  public let isBrowstay: Bool
 }
 
 public struct SchemeSetResult: Equatable, Sendable {
@@ -45,7 +45,7 @@ public final class DefaultBrowserManager {
   private let launchServicesClient: LaunchServicesClient
 
   public init(
-    ownBundleIdentifier: String = StayfariVersion.bundleIdentifier,
+    ownBundleIdentifier: String = "io.hanwen.Browstay",
     launchServicesClient: LaunchServicesClient = SystemLaunchServicesClient()
   ) {
     self.ownBundleIdentifier = ownBundleIdentifier
@@ -58,17 +58,17 @@ public final class DefaultBrowserManager {
       return SchemeHandlerStatus(
         scheme: scheme,
         currentHandler: handler,
-        isStayfari: handler == ownBundleIdentifier
+        isBrowstay: handler == ownBundleIdentifier
       )
     }
   }
 
-  public func setStayfariAsDefault() -> [SchemeSetResult] {
+  public func setBrowstayAsDefault() -> [SchemeSetResult] {
     setDefaultHandler(ownBundleIdentifier)
   }
 
-  public func restoreSafariAsDefault() -> [SchemeSetResult] {
-    setDefaultHandler(StayfariVersion.safariBundleIdentifier)
+  public func restoreDefault(to browser: BrowserDefinition) -> [SchemeSetResult] {
+    setDefaultHandler(browser.bundleIdentifier)
   }
 
   private func setDefaultHandler(_ handler: String) -> [SchemeSetResult] {
