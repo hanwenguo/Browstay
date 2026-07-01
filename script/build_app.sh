@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIGURATION="${CONFIGURATION:-debug}"
-APP_NAME="Stayfari"
+APP_NAME="Browstay"
 APP_PATH="$ROOT/build/$APP_NAME.app"
 BINARY_PATH="$ROOT/.build/$CONFIGURATION/$APP_NAME"
 
@@ -17,6 +17,6 @@ cp "$BINARY_PATH" "$APP_PATH/Contents/MacOS/$APP_NAME"
 cp "$ROOT/Resources/Info.plist" "$APP_PATH/Contents/Info.plist"
 printf 'APPL????' > "$APP_PATH/Contents/PkgInfo"
 
-codesign --force --sign - --options runtime --entitlements "$ROOT/Resources/Stayfari.entitlements" "$APP_PATH" >&2
+codesign --force --sign - --options runtime --entitlements "$ROOT/Resources/Browstay.entitlements" "$APP_PATH" >&2
 
 echo "$APP_PATH"

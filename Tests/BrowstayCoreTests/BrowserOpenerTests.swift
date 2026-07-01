@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import StayfariCore
+@testable import BrowstayCore
 
 final class BrowserOpenerTests: XCTestCase {
   func testAppleScriptStringLiteralEscapesQuotesBackslashesAndNewlines() {

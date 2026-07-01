@@ -1,6 +1,6 @@
 import CoreServices
 import XCTest
-@testable import StayfariCore
+@testable import BrowstayCore
 
 private final class FakeLaunchServicesClient: LaunchServicesClient {
   var handlers: [String: String?] = [

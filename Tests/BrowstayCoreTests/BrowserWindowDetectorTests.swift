@@ -1,6 +1,6 @@
 import CoreGraphics
 import XCTest
-@testable import StayfariCore
+@testable import BrowstayCore
 
 private struct BrowserWindowStubSnapshotProvider: WindowSnapshotProviding {
   let windows: [WindowInfo]

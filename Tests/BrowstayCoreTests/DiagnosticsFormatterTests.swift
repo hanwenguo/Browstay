@@ -1,5 +1,5 @@
 import XCTest
-@testable import StayfariCore
+@testable import BrowstayCore
 
 final class DiagnosticsFormatterTests: XCTestCase {
   func testDescribesIdleRoutingSummary() {

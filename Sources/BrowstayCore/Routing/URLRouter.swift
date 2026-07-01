@@ -1,14 +1,5 @@
 import Foundation
 
-public protocol SafariWindowDetecting: Sendable {
-  func hasVisibleSafariWindow() async -> Bool
-}
-
-public protocol SafariOpening: AnyObject, Sendable {
-  @MainActor func openNormally(_ urls: [WebURL]) async throws
-  @MainActor func openInNewWindow(_ url: WebURL) async throws
-}
-
 public enum RoutingAction: Equatable, Sendable {
   case rejected(URL)
   case browserUnavailable(URL, browser: BrowserID)

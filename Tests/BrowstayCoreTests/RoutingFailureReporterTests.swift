@@ -1,5 +1,5 @@
 import XCTest
-@testable import StayfariCore
+@testable import BrowstayCore
 
 @MainActor
 private final class RecordingNotificationClient: BrowstayNotificationClient {

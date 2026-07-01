@@ -1,6 +1,6 @@
 import XCTest
-@testable import Stayfari
-@testable import StayfariCore
+@testable import Browstay
+@testable import BrowstayCore
 
 @MainActor
 private final class SpyBrowserOpener: BrowserOpening {

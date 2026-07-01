@@ -45,7 +45,7 @@ public final class DefaultBrowserManager {
   private let launchServicesClient: LaunchServicesClient
 
   public init(
-    ownBundleIdentifier: String = "io.hanwen.Browstay",
+    ownBundleIdentifier: String = BrowstayVersion.bundleIdentifier,
     launchServicesClient: LaunchServicesClient = SystemLaunchServicesClient()
   ) {
     self.ownBundleIdentifier = ownBundleIdentifier

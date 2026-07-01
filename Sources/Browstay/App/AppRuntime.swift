@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import StayfariCore
+import BrowstayCore
 
 @MainActor
 @Observable
@@ -76,6 +76,14 @@ final class AppRuntime {
       : "Target unavailable: \(selectedBrowser.displayName)"
   }
 
+  var browserChoices: [BrowserDefinition] {
+    let installed = installedBrowsers.map(\.definition)
+    if installed.contains(where: { $0.id == selectedBrowserID }) {
+      return installed
+    }
+    return installed + [selectedBrowser]
+  }
+
   func isBrowserInstalled(_ browserID: BrowserID) -> Bool {
     installedBrowsers.contains { $0.definition.id == browserID }
   }
@@ -103,6 +111,11 @@ final class AppRuntime {
   }
 
   func setAsDefaultBrowser() {
+    guard isBrowserInstalled(selectedBrowserID) else {
+      defaultBrowserSummary = "\(selectedBrowser.displayName) is unavailable"
+      return
+    }
+
     let results = defaultBrowserManager.setBrowstayAsDefault()
     defaultBrowserSummary = DiagnosticsFormatter.describeSetResults(results)
     let failureReporter = self.failureReporter
@@ -119,10 +132,6 @@ final class AppRuntime {
 
     let results = defaultBrowserManager.restoreDefault(to: selectedBrowser)
     defaultBrowserSummary = DiagnosticsFormatter.describeSetResults(results)
-  }
-
-  func restoreSafariAsDefaultBrowser() {
-    restoreSelectedBrowserAsDefault()
   }
 
   func openTestURL() {

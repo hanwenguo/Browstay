@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import StayfariCore
+@testable import BrowstayCore
 
 private struct StubBrowserApplicationLocator: BrowserApplicationLocating {
   let applicationURLs: [String: URL]
