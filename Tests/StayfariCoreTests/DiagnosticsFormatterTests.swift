@@ -10,7 +10,7 @@ final class DiagnosticsFormatterTests: XCTestCase {
 
   func testDescribesNewWindowRoutingSummary() {
     let message = DiagnosticsFormatter.describe(URLRoutingSummary(actions: [
-      .openedNewWindow(URL(string: "https://example.com")!)
+      .openedNewWindow(URL(string: "https://example.com")!, browser: .safari)
     ]))
 
     XCTAssertEqual(message, "Opened new Safari window: https://example.com")
@@ -26,7 +26,7 @@ final class DiagnosticsFormatterTests: XCTestCase {
 
   func testDescribesOpenedNormallyRoutingSummary() {
     let message = DiagnosticsFormatter.describe(URLRoutingSummary(actions: [
-      .openedNormally(URL(string: "https://example.com")!)
+      .openedNormally(URL(string: "https://example.com")!, browser: .safari)
     ]))
 
     XCTAssertEqual(message, "Opened normally: https://example.com")
@@ -34,7 +34,11 @@ final class DiagnosticsFormatterTests: XCTestCase {
 
   func testDescribesFallbackRoutingSummary() {
     let message = DiagnosticsFormatter.describe(URLRoutingSummary(actions: [
-      .fellBackToNormal(URL(string: "https://example.com")!, reason: "Denied")
+      .fellBackToNormal(
+        URL(string: "https://example.com")!,
+        browser: .safari,
+        reason: "Denied"
+      )
     ]))
 
     XCTAssertEqual(message, "Opened normally after fallback: https://example.com")
@@ -42,7 +46,11 @@ final class DiagnosticsFormatterTests: XCTestCase {
 
   func testDescribesFailedRoutingSummary() {
     let message = DiagnosticsFormatter.describe(URLRoutingSummary(actions: [
-      .failed(URL(string: "https://example.com")!, reason: "Automation denied")
+      .failed(
+        URL(string: "https://example.com")!,
+        browser: .safari,
+        reason: "Automation denied"
+      )
     ]))
 
     XCTAssertEqual(message, "Open failed: https://example.com (Automation denied)")

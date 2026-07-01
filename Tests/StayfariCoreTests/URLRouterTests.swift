@@ -2,31 +2,36 @@ import XCTest
 @testable import StayfariCore
 
 @MainActor
-private final class SpySafariOpener: SafariOpening {
-  var normalBatches: [[WebURL]] = []
-  var newWindowURLs: [WebURL] = []
+private final class SpyBrowserOpener: BrowserOpening {
+  var available = true
+  var normalBatches: [(browser: BrowserID, urls: [WebURL])] = []
+  var newWindowRequests: [(browser: BrowserID, url: WebURL)] = []
   var newWindowError: Error?
   var normalError: Error?
 
-  func openNormally(_ urls: [WebURL]) async throws {
-    normalBatches.append(urls)
+  func isAvailable(_ browser: BrowserDefinition) -> Bool {
+    available
+  }
+
+  func openNormally(_ urls: [WebURL], in browser: BrowserDefinition) async throws {
+    normalBatches.append((browser: browser.id, urls: urls))
     if let normalError {
       throw normalError
     }
   }
 
-  func openInNewWindow(_ url: WebURL) async throws {
+  func openInNewWindow(_ url: WebURL, in browser: BrowserDefinition) async throws {
     if let newWindowError {
       throw newWindowError
     }
-    newWindowURLs.append(url)
+    newWindowRequests.append((browser: browser.id, url: url))
   }
 }
 
-private struct StubSafariWindowDetector: SafariWindowDetecting {
+private struct StubBrowserWindowDetector: BrowserWindowDetecting {
   let hasVisibleWindow: Bool
 
-  func hasVisibleSafariWindow() async -> Bool {
+  func hasVisibleWindow(for browser: BrowserDefinition) async -> Bool {
     hasVisibleWindow
   }
 }
@@ -34,7 +39,7 @@ private struct StubSafariWindowDetector: SafariWindowDetecting {
 private struct TestRoutingError: Error, Equatable {}
 
 @MainActor
-private final class BlockingSafariOpener: SafariOpening {
+private final class BlockingBrowserOpener: BrowserOpening {
   private(set) var events: [String] = []
   private(set) var maximumActiveOpenCalls = 0
 
@@ -42,25 +47,29 @@ private final class BlockingSafariOpener: SafariOpening {
   private var continuations: [CheckedContinuation<Void, Never>] = []
   private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
-  func openNormally(_ urls: [WebURL]) async throws {
-    let url = urls[0].url.absoluteString
+  func isAvailable(_ browser: BrowserDefinition) -> Bool {
+    true
+  }
+
+  func openNormally(_ urls: [WebURL], in browser: BrowserDefinition) async throws {
+    let event = "\(browser.id.rawValue):\(urls[0].url.absoluteString)"
     activeOpenCalls += 1
     maximumActiveOpenCalls = max(maximumActiveOpenCalls, activeOpenCalls)
     if activeOpenCalls > 1 {
       XCTFail("URL routing opened multiple batches concurrently")
     }
-    events.append("start:\(url)")
+    events.append("start:\(event)")
     resumeSatisfiedStartWaiters()
 
     await withCheckedContinuation { continuation in
       continuations.append(continuation)
     }
 
-    events.append("finish:\(url)")
+    events.append("finish:\(event)")
     activeOpenCalls -= 1
   }
 
-  func openInNewWindow(_ url: WebURL) async throws {
+  func openInNewWindow(_ url: WebURL, in browser: BrowserDefinition) async throws {
     XCTFail("Expected normal opening only")
   }
 
@@ -97,7 +106,11 @@ private actor RouteEnqueueProbe {
 
   func record(_ count: Int) {
     latestCount = max(latestCount, count)
-    resumeSatisfiedWaiters()
+    let readyWaiters = waiters.filter { latestCount >= $0.count }
+    waiters.removeAll { latestCount >= $0.count }
+    for waiter in readyWaiters {
+      waiter.continuation.resume()
+    }
   }
 
   func waitForCount(_ count: Int) async {
@@ -109,195 +122,177 @@ private actor RouteEnqueueProbe {
       waiters.append((count: count, continuation: continuation))
     }
   }
-
-  private func resumeSatisfiedWaiters() {
-    let readyWaiters = waiters.filter { latestCount >= $0.count }
-    waiters.removeAll { latestCount >= $0.count }
-    for waiter in readyWaiters {
-      waiter.continuation.resume()
-    }
-  }
 }
 
 final class URLRouterTests: XCTestCase {
   @MainActor
-  func testVisibleSafariWindowUsesNormalOpening() async throws {
-    let opener = SpySafariOpener()
+  func testVisibleTargetWindowUsesNormalOpening() async {
+    let opener = SpyBrowserOpener()
     let router = URLRouter(
-      detector: StubSafariWindowDetector(hasVisibleWindow: true),
+      detector: StubBrowserWindowDetector(hasVisibleWindow: true),
       opener: opener
     )
+    let url = URL(string: "https://example.com")!
 
-    let summary = await router.handle([
-      URL(string: "https://example.com")!
-    ])
+    let summary = await router.handle([url], target: .orion)
 
-    XCTAssertEqual(opener.normalBatches.map { $0.map(\.url.absoluteString) }, [["https://example.com"]])
-    XCTAssertEqual(opener.newWindowURLs, [])
-    XCTAssertEqual(summary.actions, [.openedNormally(URL(string: "https://example.com")!)])
+    XCTAssertEqual(opener.normalBatches.map(\.browser), [.orion])
+    XCTAssertEqual(opener.normalBatches.flatMap(\.urls).map(\.url), [url])
+    XCTAssertEqual(opener.newWindowRequests.count, 0)
+    XCTAssertEqual(summary.actions, [.openedNormally(url, browser: .orion)])
   }
 
   @MainActor
-  func testNoVisibleSafariWindowCreatesOneNewWindowForFirstURL() async throws {
-    let opener = SpySafariOpener()
+  func testNoVisibleTargetWindowCreatesOneWindowThenOpensRemainingNormally() async {
+    let opener = SpyBrowserOpener()
     let router = URLRouter(
-      detector: StubSafariWindowDetector(hasVisibleWindow: false),
+      detector: StubBrowserWindowDetector(hasVisibleWindow: false),
       opener: opener
     )
+    let first = URL(string: "https://first.example")!
+    let second = URL(string: "https://second.example")!
 
-    let summary = await router.handle([
-      URL(string: "https://first.example")!,
-      URL(string: "https://second.example")!
-    ])
+    let summary = await router.handle([first, second], target: .helium)
 
-    XCTAssertEqual(opener.newWindowURLs.map(\.url.absoluteString), ["https://first.example"])
-    XCTAssertEqual(opener.normalBatches.map { $0.map(\.url.absoluteString) }, [["https://second.example"]])
+    XCTAssertEqual(opener.newWindowRequests.map(\.browser), [.helium])
+    XCTAssertEqual(opener.newWindowRequests.map(\.url.url), [first])
+    XCTAssertEqual(opener.normalBatches.flatMap(\.urls).map(\.url), [second])
     XCTAssertEqual(summary.actions, [
-      .openedNewWindow(URL(string: "https://first.example")!),
-      .openedNormally(URL(string: "https://second.example")!)
+      .openedNewWindow(first, browser: .helium),
+      .openedNormally(second, browser: .helium)
     ])
   }
 
   @MainActor
-  func testAutomationFailureFallsBackToNormalSafariOpen() async throws {
-    let opener = SpySafariOpener()
+  func testUnavailableTargetFailsWithoutOpening() async {
+    let opener = SpyBrowserOpener()
+    opener.available = false
+    let router = URLRouter(
+      detector: StubBrowserWindowDetector(hasVisibleWindow: false),
+      opener: opener
+    )
+    let url = URL(string: "https://missing.example")!
+
+    let summary = await router.handle([url], target: .orion)
+
+    XCTAssertEqual(opener.normalBatches.count, 0)
+    XCTAssertEqual(opener.newWindowRequests.count, 0)
+    XCTAssertEqual(summary.actions, [.browserUnavailable(url, browser: .orion)])
+  }
+
+  @MainActor
+  func testAutomationFailureFallsBackToSameBrowserForCompleteBatch() async {
+    let opener = SpyBrowserOpener()
     opener.newWindowError = TestRoutingError()
     let router = URLRouter(
-      detector: StubSafariWindowDetector(hasVisibleWindow: false),
+      detector: StubBrowserWindowDetector(hasVisibleWindow: false),
       opener: opener
     )
+    let first = URL(string: "https://first.example")!
+    let second = URL(string: "https://second.example")!
 
-    let summary = await router.handle([
-      URL(string: "https://fallback.example")!
-    ])
+    let summary = await router.handle([first, second], target: .orion)
 
-    XCTAssertEqual(opener.normalBatches.map { $0.map(\.url.absoluteString) }, [["https://fallback.example"]])
+    XCTAssertEqual(opener.normalBatches.map(\.browser), [.orion])
+    XCTAssertEqual(opener.normalBatches.flatMap(\.urls).map(\.url), [first, second])
     XCTAssertEqual(summary.actions, [
-      .fellBackToNormal(URL(string: "https://fallback.example")!, reason: "TestRoutingError()")
+      .fellBackToNormal(first, browser: .orion, reason: "TestRoutingError()"),
+      .fellBackToNormal(second, browser: .orion, reason: "TestRoutingError()")
     ])
   }
 
   @MainActor
-  func testDisabledRouterAlwaysUsesNormalOpening() async throws {
-    let opener = SpySafariOpener()
+  func testNormalFallbackFailureReportsSelectedBrowser() async {
+    let opener = SpyBrowserOpener()
+    opener.newWindowError = TestRoutingError()
+    opener.normalError = TestRoutingError()
     let router = URLRouter(
-      detector: StubSafariWindowDetector(hasVisibleWindow: false),
+      detector: StubBrowserWindowDetector(hasVisibleWindow: false),
+      opener: opener
+    )
+    let url = URL(string: "https://failure.example")!
+
+    let summary = await router.handle([url], target: .helium)
+
+    XCTAssertEqual(summary.actions, [
+      .failed(url, browser: .helium, reason: "TestRoutingError()")
+    ])
+  }
+
+  @MainActor
+  func testDisabledRouterUsesNormalOpeningInSelectedBrowser() async {
+    let opener = SpyBrowserOpener()
+    let router = URLRouter(
+      detector: StubBrowserWindowDetector(hasVisibleWindow: false),
       opener: opener,
       isEnabled: false
     )
+    let url = URL(string: "https://disabled.example")!
 
-    let summary = await router.handle([
-      URL(string: "https://disabled.example")!
-    ])
+    let summary = await router.handle([url], target: .helium)
 
-    XCTAssertEqual(opener.newWindowURLs, [])
-    XCTAssertEqual(opener.normalBatches.map { $0.map(\.url.absoluteString) }, [["https://disabled.example"]])
-    XCTAssertEqual(summary.actions, [
-      .openedNormally(URL(string: "https://disabled.example")!)
-    ])
+    XCTAssertEqual(opener.normalBatches.map(\.browser), [.helium])
+    XCTAssertEqual(summary.actions, [.openedNormally(url, browser: .helium)])
   }
 
   @MainActor
-  func testRejectedURLsAreReportedAndNotOpened() async throws {
-    let opener = SpySafariOpener()
+  func testMixedValidAndRejectedURLsPreserveInputOrder() async {
+    let opener = SpyBrowserOpener()
     let router = URLRouter(
-      detector: StubSafariWindowDetector(hasVisibleWindow: true),
+      detector: StubBrowserWindowDetector(hasVisibleWindow: true),
       opener: opener
     )
+    let first = URL(string: "https://first.example")!
+    let rejected = URL(string: "mailto:hello@example.com")!
+    let second = URL(string: "https://second.example")!
 
-    let rejectedURL = URL(string: "mailto:hello@example.com")!
-    let summary = await router.handle([rejectedURL])
+    let summary = await router.handle([first, rejected, second], target: .safari)
 
-    XCTAssertEqual(opener.normalBatches, [])
-    XCTAssertEqual(opener.newWindowURLs, [])
-    XCTAssertEqual(summary.actions, [.rejected(rejectedURL)])
+    XCTAssertEqual(summary.actions, [
+      .openedNormally(first, browser: .safari),
+      .rejected(rejected),
+      .openedNormally(second, browser: .safari)
+    ])
   }
 
   @MainActor
-  func testConcurrentHandleCallsDoNotOverlapAndCompleteInSubmissionOrder() async throws {
-    let opener = BlockingSafariOpener()
+  func testConcurrentRoutesKeepSubmissionOrderAndCapturedTargets() async {
+    let opener = BlockingBrowserOpener()
     let enqueueProbe = RouteEnqueueProbe()
     let router = URLRouter(
-      detector: StubSafariWindowDetector(hasVisibleWindow: true),
+      detector: StubBrowserWindowDetector(hasVisibleWindow: true),
       opener: opener,
       didEnqueueRoute: { count in
-        Task {
-          await enqueueProbe.record(count)
-        }
+        Task { await enqueueProbe.record(count) }
       }
     )
+    let firstURL = URL(string: "https://first.example")!
+    let secondURL = URL(string: "https://second.example")!
 
     let firstTask = Task {
-      await router.handle([URL(string: "https://first.example")!])
+      await router.handle([firstURL], target: .orion)
     }
     await opener.waitForOpenStart(count: 1)
-    XCTAssertEqual(opener.events, ["start:https://first.example"])
 
     let secondTask = Task {
-      await router.handle([URL(string: "https://second.example")!])
+      await router.handle([secondURL], target: .helium)
     }
-
     await enqueueProbe.waitForCount(2)
-    XCTAssertEqual(opener.events, ["start:https://first.example"])
-    XCTAssertEqual(opener.maximumActiveOpenCalls, 1)
 
+    XCTAssertEqual(opener.maximumActiveOpenCalls, 1)
     opener.resumeNextOpen()
     let firstSummary = await firstTask.value
     await opener.waitForOpenStart(count: 2)
     opener.resumeNextOpen()
     let secondSummary = await secondTask.value
 
-    XCTAssertEqual(opener.maximumActiveOpenCalls, 1)
     XCTAssertEqual(opener.events, [
-      "start:https://first.example",
-      "finish:https://first.example",
-      "start:https://second.example",
-      "finish:https://second.example"
+      "start:orion:https://first.example",
+      "finish:orion:https://first.example",
+      "start:helium:https://second.example",
+      "finish:helium:https://second.example"
     ])
-    XCTAssertEqual(firstSummary.actions, [.openedNormally(URL(string: "https://first.example")!)])
-    XCTAssertEqual(secondSummary.actions, [.openedNormally(URL(string: "https://second.example")!)])
-  }
-
-  @MainActor
-  func testMixedValidAndRejectedURLsPreserveInputOrderInSummaryActions() async throws {
-    let opener = SpySafariOpener()
-    let router = URLRouter(
-      detector: StubSafariWindowDetector(hasVisibleWindow: true),
-      opener: opener
-    )
-
-    let first = URL(string: "https://first.example")!
-    let rejected = URL(string: "mailto:hello@example.com")!
-    let second = URL(string: "https://second.example")!
-    let summary = await router.handle([first, rejected, second])
-
-    XCTAssertEqual(opener.normalBatches.map { $0.map(\.url.absoluteString) }, [[
-      "https://first.example",
-      "https://second.example"
-    ]])
-    XCTAssertEqual(summary.actions, [
-      .openedNormally(first),
-      .rejected(rejected),
-      .openedNormally(second)
-    ])
-  }
-
-  @MainActor
-  func testFallbackNormalOpenFailureReportsFailedAction() async throws {
-    let opener = SpySafariOpener()
-    opener.newWindowError = TestRoutingError()
-    opener.normalError = TestRoutingError()
-    let router = URLRouter(
-      detector: StubSafariWindowDetector(hasVisibleWindow: false),
-      opener: opener
-    )
-
-    let url = URL(string: "https://failure.example")!
-    let summary = await router.handle([url])
-
-    XCTAssertEqual(opener.normalBatches.map { $0.map(\.url.absoluteString) }, [["https://failure.example"]])
-    XCTAssertEqual(summary.actions, [
-      .failed(url, reason: "TestRoutingError()")
-    ])
+    XCTAssertEqual(firstSummary.actions, [.openedNormally(firstURL, browser: .orion)])
+    XCTAssertEqual(secondSummary.actions, [.openedNormally(secondURL, browser: .helium)])
   }
 }

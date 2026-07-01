@@ -32,8 +32,8 @@ final class AppRuntime {
   }
 
   static func live() -> AppRuntime {
-    let detector = SafariWindowDetector(snapshotProvider: CoreGraphicsWindowSnapshotProvider())
-    let opener = SafariOpener()
+    let detector = BrowserWindowDetector(snapshotProvider: CoreGraphicsWindowSnapshotProvider())
+    let opener = BrowserOpener()
     let router = URLRouter(detector: detector, opener: opener)
     let defaultBrowserManager = DefaultBrowserManager()
 

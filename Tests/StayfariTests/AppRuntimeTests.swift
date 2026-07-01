@@ -3,21 +3,25 @@ import XCTest
 @testable import StayfariCore
 
 @MainActor
-private final class SpySafariOpener: SafariOpening {
+private final class SpySafariOpener: BrowserOpening {
   var normalBatches: [[WebURL]] = []
   var newWindowURLs: [WebURL] = []
 
-  func openNormally(_ urls: [WebURL]) async throws {
+  func isAvailable(_ browser: BrowserDefinition) -> Bool {
+    true
+  }
+
+  func openNormally(_ urls: [WebURL], in browser: BrowserDefinition) async throws {
     normalBatches.append(urls)
   }
 
-  func openInNewWindow(_ url: WebURL) async throws {
+  func openInNewWindow(_ url: WebURL, in browser: BrowserDefinition) async throws {
     newWindowURLs.append(url)
   }
 }
 
-private struct StubSafariWindowDetector: SafariWindowDetecting {
-  func hasVisibleSafariWindow() async -> Bool {
+private struct StubSafariWindowDetector: BrowserWindowDetecting {
+  func hasVisibleWindow(for browser: BrowserDefinition) async -> Bool {
     false
   }
 }

@@ -9,13 +9,15 @@ public enum DiagnosticsFormatter {
     switch lastAction {
     case .rejected(let url):
       return "Ignored unsupported URL: \(url.absoluteString)"
-    case .openedNormally(let url):
+    case .browserUnavailable(_, let browser):
+      return "\(BrowserDefinition.definition(for: browser).displayName) is unavailable"
+    case .openedNormally(let url, _):
       return "Opened normally: \(url.absoluteString)"
-    case .openedNewWindow(let url):
-      return "Opened new Safari window: \(url.absoluteString)"
-    case .fellBackToNormal(let url, _):
+    case .openedNewWindow(let url, let browser):
+      return "Opened new \(BrowserDefinition.definition(for: browser).displayName) window: \(url.absoluteString)"
+    case .fellBackToNormal(let url, _, _):
       return "Opened normally after fallback: \(url.absoluteString)"
-    case .failed(let url, let reason):
+    case .failed(let url, _, let reason):
       return "Open failed: \(url.absoluteString) (\(reason))"
     }
   }
