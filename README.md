@@ -1,12 +1,35 @@
-I have been annoyed by one particular behavior of Safari. When some other app attempts to open a link while Safari happens to do not have any windows on the current desktop but have windows on other desktops, Safari opens the link in a new tab in one of the existing windows on the other desktop, sometimes jumping from, say, desktop 7 to desktop 1.
+# Browstay
 
-There is an Safari preference option to always open links in a new window, but that causes Safari to open a new window for _every_ link, meaning that you click a link while browsing, and Safari opens a new window for that link, which is also annoying.
+Browstay is a small macOS menu bar app that keeps external browser links on the
+current Desktop.
 
-So this is a rather specific use case, and I couldn't find any existing app that solves this problem. [This is when you write an Emacsificated software.](https://sockpuppet.org/blog/2026/05/12/emacsification/) So, I described the problem to Codex, and it gave me the following. Note that I didn't read or touched any of the code, but it Just Works™️. I have been using it for a few days, and it works perfectly. I hope this can be useful for other people who have the same problem.
+It acts as the default handler for `http` and `https`, then forwards each link
+to one selected browser. If that browser already has a normal window visible in
+the current visible Spaces, Browstay preserves its normal tab and window
+behavior. If its windows exist only on another Desktop, Browstay creates a
+regular window for the link on the current Desktop.
 
-# Stayfari
+The first release supports installations that are validated individually:
 
-Stayfari is a small macOS menu bar app that acts as a default-browser proxy for Safari. When another app opens an external `http` or `https` link, Stayfari sends the link to Safari. If Safari already has a visible window in the current visible Spaces, Safari keeps its normal tab/window behavior. If Safari is running only on another Desktop, Stayfari asks Safari to create a regular window for the link on the current Desktop.
+- Safari
+- Orion
+- Helium
+
+Additional browsers require a tested Browstay adapter or browser definition.
+Browstay does not infer support from arbitrary installed applications.
+
+## Homebrew
+
+```bash
+brew install --cask --no-quarantine hanwenguo/tap/browstay
+```
+
+Browstay is ad-hoc signed rather than notarized by Apple. Using
+`--no-quarantine` is an explicit decision to trust the release; Homebrew still
+verifies the archive against the checksum recorded in the tap. A normal cask
+installation may instead require approval in **System Settings → Privacy &
+Security**. Because ad-hoc signatures are not a persistent developer identity,
+macOS may ask for Automation permission again after an upgrade.
 
 ## Build
 
@@ -14,32 +37,74 @@ Stayfari is a small macOS menu bar app that acts as a default-browser proxy for 
 script/build_app.sh
 ```
 
+To make the universal release build locally:
+
+```bash
+CONFIGURATION=release ARCHS="arm64 x86_64" script/build_app.sh
+```
+
 The app bundle is written to:
 
 ```text
-build/Stayfari.app
+build/Browstay.app
 ```
 
-## Run
+Copy the bundle to `/Applications` and launch it. Browstay is menu-bar only and
+does not show a Dock icon.
 
-Copy the app bundle to `/Applications` and launch it.
+## Setup
 
-Stayfari is menu-bar only and does not show a Dock icon.
+1. Open the Browstay menu bar item.
+2. Choose an installed browser from **Browser**.
+3. Choose **Set Browstay as Default**.
+4. Approve notification access so background routing failures can be reported.
 
-## Set as Default Browser
+Changing the selected browser does not change the macOS default handler.
+Browstay remains the proxy and sends future links to the new selection.
 
-Open the Stayfari menu bar item and choose **Set as Default**. This sets Stayfari as the handler for both `http` and `https` using Launch Services.
+To stop using Browstay, choose **Restore _Browser_ as Default**. Browstay sets
+both `http` and `https` to the selected browser.
 
-To return to normal Safari behavior, choose **Restore Safari** from the menu bar item.
+## Current-Space Behavior
 
-## Permissions
+The **Open Links on Current Space** toggle controls only window placement:
 
-The first time Stayfari needs to create a Safari window, macOS may ask whether Stayfari can control Safari. Approve that prompt. Stayfari uses this only for Safari and only to create a regular Safari window for an external web link.
+- On: create a browser window on the current Desktop when none is visible.
+- Off: forward links normally to the selected browser.
 
-## Fallback Behavior
+Browstay treats a target-browser window on any currently visible connected
+display as visible.
 
-If Safari automation is denied or fails, Stayfari opens the link normally in Safari. The link should still open, but macOS may switch to a Safari Space in that fallback path.
+## Permissions and Failures
+
+The first forced-window open for each selected browser may cause macOS to ask
+whether Browstay can control that browser.
+
+If automation is denied or fails, Browstay opens the link normally in the same
+browser and posts a warning. macOS may switch to another Desktop in that
+fallback path.
+
+If the selected browser is unavailable, Browstay does not silently use another
+browser. It leaves the link unopened, posts a notification, and retains the
+failure in the menu.
+
+Notifications identify the browser and failure category but do not include the
+URL.
+
+## Migrating from Stayfari
+
+Browstay has a new application and bundle identity. Existing Stayfari settings,
+default-handler registration, and automation permission are not reused.
+
+Quit Stayfari, launch Browstay, select a browser, and choose **Set Browstay as
+Default**. Browstay can replace the old Stayfari handler directly; restoring
+Safari first is optional.
+
+## Verification
+
+See [docs/manual-verification.md](docs/manual-verification.md) for the Safari,
+Orion, and Helium release matrix.
 
 ## License
 
-If I have the right to license this code, it is licensed under GNU GPL v3 or later.
+GNU GPL v3 or later. See [LICENSE](LICENSE).

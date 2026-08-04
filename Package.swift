@@ -2,32 +2,32 @@
 import PackageDescription
 
 let package = Package(
-  name: "Stayfari",
+  name: "Browstay",
   platforms: [
     .macOS(.v14)
   ],
   products: [
-    .executable(name: "Stayfari", targets: ["Stayfari"])
+    .executable(name: "Browstay", targets: ["Browstay"])
   ],
   targets: [
     .target(
-      name: "StayfariCore",
-      path: "Sources/StayfariCore"
+      name: "BrowstayCore",
+      path: "Sources/BrowstayCore"
     ),
     .executableTarget(
-      name: "Stayfari",
-      dependencies: ["StayfariCore"],
-      path: "Sources/Stayfari"
+      name: "Browstay",
+      dependencies: ["BrowstayCore"],
+      path: "Sources/Browstay"
     ),
     .testTarget(
-      name: "StayfariCoreTests",
-      dependencies: ["StayfariCore"],
-      path: "Tests/StayfariCoreTests"
+      name: "BrowstayCoreTests",
+      dependencies: ["BrowstayCore"],
+      path: "Tests/BrowstayCoreTests"
     ),
     .testTarget(
-      name: "StayfariTests",
-      dependencies: ["Stayfari", "StayfariCore"],
-      path: "Tests/StayfariTests"
+      name: "BrowstayTests",
+      dependencies: ["Browstay", "BrowstayCore"],
+      path: "Tests/BrowstayTests"
     )
   ]
 )
