@@ -12,11 +12,18 @@ jobs:
   verify:
     name: Verify tag and tests
     runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     outputs:
       prerelease: ${{ steps.version.outputs.prerelease }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
+
+      - name: Show release toolchain
+        run: |
+          xcodebuild -version
+          swift --version
 
       - name: Require matching tag
         id: version
@@ -46,6 +53,8 @@ jobs:
     name: Build universal app
     needs: [verify]
     runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
       - uses: actions/checkout@v5
 
@@ -63,6 +72,8 @@ jobs:
           test "$(plutil -extract CFBundleShortVersionString raw build/Browstay.app/Contents/Info.plist)" = "$APP_VERSION"
           archs="$(lipo -archs build/Browstay.app/Contents/MacOS/Browstay)"
           [[ "$archs" == *arm64* && "$archs" == *x86_64* ]]
+          min_versions="$(vtool -show-build build/Browstay.app/Contents/MacOS/Browstay | awk '$1 == "minos" { print $2 }' | sort -u)"
+          [[ "$min_versions" == "14.0" ]]
           codesign --verify --deep --strict --verbose=2 build/Browstay.app
           codesign -dvvv --entitlements :- build/Browstay.app
 
