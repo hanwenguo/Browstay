@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -25,20 +26,20 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Require matching tag
+      - name: Resolve and verify version
         id: version
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
-            echo "::error::Release must run on a tag; got $GITHUB_REF."
-            exit 1
-          fi
-          version="${GITHUB_REF_NAME#v}"
           plist_version="$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)"
-          if [[ "$version" != "$plist_version" ]]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match Info.plist version $plist_version."
-            exit 1
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            if [[ "$version" != "$plist_version" ]]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match Info.plist version $plist_version."
+              exit 1
+            fi
+          else
+            version="$plist_version"
           fi
           case "$version" in
             *-*) prerelease=true ;;
@@ -96,6 +97,7 @@ jobs:
 
   publish:
     name: Publish GitHub release
+    if: github.ref_type == 'tag'
     needs: [verify, build]
     runs-on: ubuntu-latest
     permissions:
