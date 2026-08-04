@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify tag and tests
+    runs-on: macos-15
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Require matching tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            echo "::error::Release must run on a tag; got $GITHUB_REF."
+            exit 1
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          plist_version="$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)"
+          if [[ "$version" != "$plist_version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Info.plist version $plist_version."
+            exit 1
+          fi
+          case "$version" in
+            *-*) prerelease=true ;;
+            *) prerelease=false ;;
+          esac
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - run: swift test
+
+  build:
+    name: Build universal app
+    needs: [verify]
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build and verify app
+        env:
+          APP_VERSION: ${{ needs.verify.outputs.version }}
+          ARCHS: arm64 x86_64
+          BUILD_NUMBER: ${{ github.run_number }}
+          CONFIGURATION: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          script/build_app.sh
+          plutil -lint build/Browstay.app/Contents/Info.plist
+          test "$(plutil -extract CFBundleShortVersionString raw build/Browstay.app/Contents/Info.plist)" = "$APP_VERSION"
+          archs="$(lipo -archs build/Browstay.app/Contents/MacOS/Browstay)"
+          [[ "$archs" == *arm64* && "$archs" == *x86_64* ]]
+          codesign --verify --deep --strict --verbose=2 build/Browstay.app
+          codesign -dvvv --entitlements :- build/Browstay.app
+
+      - name: Package release
+        env:
+          APP_VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/Browstay.app "dist/Browstay-$APP_VERSION.zip"
+          (cd dist && shasum -a 256 "Browstay-$APP_VERSION.zip" > "Browstay-$APP_VERSION.zip.sha256")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Browstay-${{ needs.verify.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    needs: [verify, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Browstay-${{ needs.verify.outputs.version }}
+          path: dist
+
+      - name: Verify checksum
+        run: (cd dist && sha256sum --check ./*.sha256)
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_args=()
+          if [[ "$PRERELEASE" == "true" ]]; then
+            release_args+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Browstay $VERSION" \
+            --generate-notes \
+            "${release_args[@]}"

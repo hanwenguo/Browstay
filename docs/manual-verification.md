@@ -18,9 +18,13 @@ codesign -dvvv --entitlements :- build/Browstay.app
 Confirm:
 
 - The plist is valid.
-- The signature is valid.
+- The ad-hoc signature is valid.
 - `com.apple.security.automation.apple-events` is present.
 - Browstay appears in the menu bar without a Dock icon.
+
+Release archives are not notarized. Test the documented Homebrew
+`--no-quarantine` installation separately from a normal quarantined install,
+which macOS may require the user to approve in Privacy & Security.
 
 ## Default Handler and Selection
 

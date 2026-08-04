@@ -18,10 +18,29 @@ The first release supports installations that are validated individually:
 Additional browsers require a tested Browstay adapter or browser definition.
 Browstay does not infer support from arbitrary installed applications.
 
+## Homebrew
+
+```bash
+brew install --cask --no-quarantine hanwenguo/tap/browstay
+```
+
+Browstay is ad-hoc signed rather than notarized by Apple. Using
+`--no-quarantine` is an explicit decision to trust the release; Homebrew still
+verifies the archive against the checksum recorded in the tap. A normal cask
+installation may instead require approval in **System Settings → Privacy &
+Security**. Because ad-hoc signatures are not a persistent developer identity,
+macOS may ask for Automation permission again after an upgrade.
+
 ## Build
 
 ```bash
 script/build_app.sh
+```
+
+To make the universal release build locally:
+
+```bash
+CONFIGURATION=release ARCHS="arm64 x86_64" script/build_app.sh
 ```
 
 The app bundle is written to:
