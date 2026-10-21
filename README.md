@@ -75,6 +75,13 @@ The **Open Links on Current Space** toggle controls only window placement:
 Browstay treats a target-browser window on any currently visible connected
 display as visible.
 
+## New Window Shortcut
+
+Press **⌃⌥⌘N** anywhere to open a new window of the selected browser on the
+current Desktop of the display under the mouse pointer. The same action is
+available from the menu as **New _Browser_ Window Here**. The shortcut works
+whether or not **Open Links on Current Space** is on.
+
 ## Permissions and Failures
 
 The first forced-window open for each selected browser may cause macOS to ask

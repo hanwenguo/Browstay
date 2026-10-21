@@ -26,6 +26,10 @@ private final class SpyBrowserOpener: BrowserOpening {
     }
     newWindowRequests.append((browser: browser.id, url: url))
   }
+
+  func openEmptyWindow(in browser: BrowserDefinition, within bounds: WindowBounds?) async throws {
+    XCTFail("URL routing should not open empty windows")
+  }
 }
 
 private struct StubBrowserWindowDetector: BrowserWindowDetecting {
@@ -70,6 +74,10 @@ private final class BlockingBrowserOpener: BrowserOpening {
   }
 
   func openInNewWindow(_ url: WebURL, in browser: BrowserDefinition) async throws {
+    XCTFail("Expected normal opening only")
+  }
+
+  func openEmptyWindow(in browser: BrowserDefinition, within bounds: WindowBounds?) async throws {
     XCTFail("Expected normal opening only")
   }
 

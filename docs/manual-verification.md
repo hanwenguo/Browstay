@@ -87,6 +87,17 @@ When multiple displays are connected:
 
 Expected: Browstay treats the target as visible and uses normal opening.
 
+### New Window Shortcut
+
+1. Put all target-browser windows on Desktop 2, then switch to Desktop 1.
+2. Press ⌃⌥⌘N.
+3. With multiple displays, move the pointer to the other display and press
+   ⌃⌥⌘N again.
+
+Expected: each press opens a regular target-browser window on the current
+Desktop of the display under the pointer, without switching Desktops. The menu
+shows "Opened new _Browser_ window".
+
 ## Failure and Restore
 
 1. Select a browser, then make its app temporarily unavailable only if this can

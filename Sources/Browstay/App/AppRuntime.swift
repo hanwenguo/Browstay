@@ -14,6 +14,8 @@ final class AppRuntime {
   var installedBrowsers: [BrowserInstallation]
 
   private let router: URLRouter
+  private let opener: BrowserOpening
+  private let currentDisplayBounds: @MainActor () -> WindowBounds?
   private let defaultBrowserManager: DefaultBrowserManager
   private let browserCatalog: BrowserCatalog
   private let selectionStore: BrowserSelectionStore
@@ -25,6 +27,8 @@ final class AppRuntime {
 
   init(
     router: URLRouter,
+    opener: BrowserOpening,
+    currentDisplayBounds: @escaping @MainActor () -> WindowBounds?,
     defaultBrowserManager: DefaultBrowserManager,
     browserCatalog: BrowserCatalog,
     selectionStore: BrowserSelectionStore,
@@ -33,6 +37,8 @@ final class AppRuntime {
     lastEventSummary: String = "No URL handled yet"
   ) {
     self.router = router
+    self.opener = opener
+    self.currentDisplayBounds = currentDisplayBounds
     self.defaultBrowserManager = defaultBrowserManager
     self.browserCatalog = browserCatalog
     self.selectionStore = selectionStore
@@ -59,6 +65,8 @@ final class AppRuntime {
 
     return AppRuntime(
       router: router,
+      opener: opener,
+      currentDisplayBounds: CurrentDisplay.visibleBounds,
       defaultBrowserManager: defaultBrowserManager,
       browserCatalog: browserCatalog,
       selectionStore: selectionStore,
@@ -136,6 +144,25 @@ final class AppRuntime {
 
   func openTestURL() {
     handleIncomingURLs([URL(string: "https://www.apple.com/")!])
+  }
+
+  func openNewWindowOnCurrentDisplay() {
+    let target = selectedBrowser
+    guard isBrowserInstalled(target.id) else {
+      lastEventSummary = "\(target.displayName) is unavailable"
+      return
+    }
+
+    let opener = self.opener
+    let bounds = currentDisplayBounds()
+    enqueueRuntimeCommand { [weak self] in
+      do {
+        try await opener.openEmptyWindow(in: target, within: bounds)
+        self?.lastEventSummary = "Opened new \(target.displayName) window"
+      } catch {
+        self?.lastEventSummary = "New \(target.displayName) window failed (\(error.localizedDescription))"
+      }
+    }
   }
 
   func handleIncomingURLs(_ urls: [URL]) {

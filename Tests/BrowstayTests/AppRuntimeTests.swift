@@ -7,6 +7,7 @@ private final class SpyBrowserOpener: BrowserOpening {
   var availableBrowserIDs = Set(BrowserID.allCases)
   var normalBatches: [(browser: BrowserID, urls: [WebURL])] = []
   var newWindowRequests: [(browser: BrowserID, url: WebURL)] = []
+  var emptyWindowRequests: [(browser: BrowserID, bounds: WindowBounds?)] = []
 
   func isAvailable(_ browser: BrowserDefinition) -> Bool {
     availableBrowserIDs.contains(browser.id)
@@ -18,6 +19,10 @@ private final class SpyBrowserOpener: BrowserOpening {
 
   func openInNewWindow(_ url: WebURL, in browser: BrowserDefinition) async throws {
     newWindowRequests.append((browser: browser.id, url: url))
+  }
+
+  func openEmptyWindow(in browser: BrowserDefinition, within bounds: WindowBounds?) async throws {
+    emptyWindowRequests.append((browser: browser.id, bounds: bounds))
   }
 }
 
@@ -176,9 +181,44 @@ final class AppRuntimeTests: XCTestCase {
   }
 
   @MainActor
+  func testNewWindowShortcutOpensSelectedBrowserOnCurrentDisplay() async {
+    let opener = SpyBrowserOpener()
+    let displayBounds = WindowBounds(left: 1440, top: 25, right: 3360, bottom: 1080)
+    let runtime = makeRuntime(
+      opener: opener,
+      currentDisplayBounds: displayBounds,
+      installedBrowserIDs: [.safari, .helium]
+    ).runtime
+
+    runtime.selectBrowser(.helium)
+    runtime.openNewWindowOnCurrentDisplay()
+    await runtime.waitForRuntimeCommands()
+
+    XCTAssertEqual(opener.emptyWindowRequests.map(\.browser), [.helium])
+    XCTAssertEqual(opener.emptyWindowRequests.map(\.bounds), [displayBounds])
+    XCTAssertTrue(opener.newWindowRequests.isEmpty)
+    XCTAssertTrue(opener.normalBatches.isEmpty)
+    XCTAssertEqual(runtime.lastEventSummary, "Opened new Helium window")
+  }
+
+  @MainActor
+  func testNewWindowShortcutSkipsUnavailableBrowser() async {
+    let opener = SpyBrowserOpener()
+    let runtime = makeRuntime(opener: opener, installedBrowserIDs: [.safari]).runtime
+
+    runtime.selectBrowser(.orion)
+    runtime.openNewWindowOnCurrentDisplay()
+    await runtime.waitForRuntimeCommands()
+
+    XCTAssertTrue(opener.emptyWindowRequests.isEmpty)
+    XCTAssertEqual(runtime.lastEventSummary, "Orion is unavailable")
+  }
+
+  @MainActor
   private func makeRuntime(
     opener: SpyBrowserOpener = SpyBrowserOpener(),
     selectionDefaults: MemorySelectionDefaults = MemorySelectionDefaults(),
+    currentDisplayBounds: WindowBounds? = nil,
     installedBrowserIDs: [BrowserID]
   ) -> (
     runtime: AppRuntime,
@@ -191,6 +231,8 @@ final class AppRuntimeTests: XCTestCase {
     let failureReporter = SpyRoutingFailureReporter()
     let runtime = AppRuntime(
       router: URLRouter(detector: StubBrowserWindowDetector(), opener: opener),
+      opener: opener,
+      currentDisplayBounds: { currentDisplayBounds },
       defaultBrowserManager: DefaultBrowserManager(
         ownBundleIdentifier: "io.hanwen.Browstay",
         launchServicesClient: launchServicesClient

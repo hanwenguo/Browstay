@@ -78,6 +78,7 @@ public protocol BrowserOpening: AnyObject, Sendable {
   func isAvailable(_ browser: BrowserDefinition) -> Bool
   func openNormally(_ urls: [WebURL], in browser: BrowserDefinition) async throws
   func openInNewWindow(_ url: WebURL, in browser: BrowserDefinition) async throws
+  func openEmptyWindow(in browser: BrowserDefinition, within bounds: WindowBounds?) async throws
 }
 
 @MainActor
@@ -119,6 +120,19 @@ public final class BrowserOpener: BrowserOpening {
     try scriptExecutor.execute(source: Self.newWindowScriptSource(for: url, browser: browser))
   }
 
+  public func openEmptyWindow(
+    in browser: BrowserDefinition,
+    within bounds: WindowBounds?
+  ) async throws {
+    guard isAvailable(browser) else {
+      throw BrowserOpenError.browserNotFound(browser.id)
+    }
+
+    try scriptExecutor.execute(
+      source: Self.emptyWindowScriptSource(for: browser, within: bounds)
+    )
+  }
+
   public nonisolated static func newWindowScriptSource(
     for url: WebURL,
     browser: BrowserDefinition
@@ -142,6 +156,52 @@ public final class BrowserOpener: BrowserOpening {
       end tell
       """
     }
+  }
+
+  /// Creates a window on the current Space. When `bounds` is given and the
+  /// browser placed the window elsewhere, the window is moved and centered
+  /// inside `bounds`, shrinking it if it does not fit.
+  public nonisolated static func emptyWindowScriptSource(
+    for browser: BrowserDefinition,
+    within bounds: WindowBounds?
+  ) -> String {
+    var lines = [
+      "tell application id \"\(browser.bundleIdentifier)\"",
+      "  activate"
+    ]
+
+    switch browser.newWindowStrategy {
+    case .safariDocument, .orionDocument:
+      lines += [
+        "  make new document",
+        "  set newWindow to front window"
+      ]
+    case .chromiumWindow:
+      lines += [
+        "  set newWindow to make new window with properties {mode:\"normal\"}"
+      ]
+    }
+
+    if let bounds {
+      lines += [
+        "  set {windowLeft, windowTop, windowRight, windowBottom} to bounds of newWindow",
+        "  set windowCenterX to (windowLeft + windowRight) / 2",
+        "  set windowCenterY to (windowTop + windowBottom) / 2",
+        "  if windowCenterX < \(bounds.left) or windowCenterX > \(bounds.right) "
+          + "or windowCenterY < \(bounds.top) or windowCenterY > \(bounds.bottom) then",
+        "    set windowWidth to windowRight - windowLeft",
+        "    if windowWidth > \(bounds.width) then set windowWidth to \(bounds.width)",
+        "    set windowHeight to windowBottom - windowTop",
+        "    if windowHeight > \(bounds.height) then set windowHeight to \(bounds.height)",
+        "    set newLeft to \(bounds.left) + (\(bounds.width) - windowWidth) div 2",
+        "    set newTop to \(bounds.top) + (\(bounds.height) - windowHeight) div 2",
+        "    set bounds of newWindow to {newLeft, newTop, newLeft + windowWidth, newTop + windowHeight}",
+        "  end if"
+      ]
+    }
+
+    lines.append("end tell")
+    return lines.joined(separator: "\n")
   }
 
   public nonisolated static func appleScriptStringLiteral(_ value: String) -> String {

@@ -39,6 +39,12 @@ struct MenuBarContent: View {
 
     Divider()
 
+    Button("New \(runtime.selectedBrowser.displayName) Window Here") {
+      runtime.openNewWindowOnCurrentDisplay()
+    }
+    .keyboardShortcut(NewWindowShortcut.keyEquivalent, modifiers: NewWindowShortcut.eventModifiers)
+    .disabled(!runtime.isBrowserInstalled(runtime.selectedBrowserID))
+
     Button("Test Open") {
       runtime.openTestURL()
     }
