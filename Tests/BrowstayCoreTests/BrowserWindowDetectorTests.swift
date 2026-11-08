@@ -36,6 +36,31 @@ final class BrowserWindowDetectorTests: XCTestCase {
     XCTAssertFalse(hasSafariWindow)
   }
 
+  func testDistinguishesChromiumBuildsThatShareAnOwnerName() async {
+    let detector = BrowserWindowDetector(snapshotProvider: BrowserWindowStubSnapshotProvider(windows: [
+      window(
+        ownerName: "Chromium",
+        bundleIdentifier: BrowserDefinition.ungoogledChromium.bundleIdentifier
+      )
+    ]))
+
+    let hasUngoogledWindow = await detector.hasVisibleWindow(for: .ungoogledChromium)
+    let hasChromiumWindow = await detector.hasVisibleWindow(for: .chromium)
+
+    XCTAssertTrue(hasUngoogledWindow)
+    XCTAssertFalse(hasChromiumWindow)
+  }
+
+  func testMatchesChromeByItsOwnerNameWhenBundleIdentifierIsUnavailable() async {
+    let detector = BrowserWindowDetector(snapshotProvider: BrowserWindowStubSnapshotProvider(windows: [
+      window(ownerName: "Google Chrome", bundleIdentifier: nil)
+    ]))
+
+    let hasChromeWindow = await detector.hasVisibleWindow(for: .chrome)
+
+    XCTAssertTrue(hasChromeWindow)
+  }
+
   func testRejectsNonNormalTargetWindows() async {
     let detector = BrowserWindowDetector(snapshotProvider: BrowserWindowStubSnapshotProvider(windows: [
       window(ownerName: "Safari", bundleIdentifier: "com.apple.Safari", layer: 25),

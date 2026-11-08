@@ -38,8 +38,9 @@ which macOS may require the user to approve in Privacy & Security.
 
 ## Browser Matrix
 
-Repeat every scenario for Safari, Orion, and Helium. A browser is releasable
-only after every applicable scenario passes.
+Repeat every scenario for Safari, Orion, Helium, Google Chrome, Chromium, and
+Ungoogled Chromium. A browser is releasable only after every applicable scenario
+passes.
 
 ### Visible Current-Space Window
 

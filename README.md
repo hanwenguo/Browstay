@@ -9,11 +9,17 @@ the current visible Spaces, Browstay preserves its normal tab and window
 behavior. If its windows exist only on another Desktop, Browstay creates a
 regular window for the link on the current Desktop.
 
-The first release supports installations that are validated individually:
+Browstay supports a curated list of browsers:
 
 - Safari
 - Orion
 - Helium
+- Google Chrome
+- Chromium
+- Ungoogled Chromium
+
+Chromium and Ungoogled Chromium are separate choices because each has its own
+bundle identifier, even though both install as `Chromium.app`.
 
 Additional browsers require a tested Browstay adapter or browser definition.
 Browstay does not infer support from arbitrary installed applications.
@@ -109,8 +115,8 @@ Safari first is optional.
 
 ## Verification
 
-See [docs/manual-verification.md](docs/manual-verification.md) for the Safari,
-Orion, and Helium release matrix.
+See [docs/manual-verification.md](docs/manual-verification.md) for the browser
+release matrix.
 
 ## License
 

@@ -28,6 +28,17 @@ final class BrowserSelectionStoreTests: XCTestCase {
     XCTAssertEqual(store.selectedBrowser(currentHTTPSHandler: "net.imput.helium"), .helium)
   }
 
+  func testFirstRunRecognizesChromeAndBothChromiumHandlers() {
+    let store = BrowserSelectionStore(defaults: MemoryBrowserSelectionDefaults())
+
+    XCTAssertEqual(store.selectedBrowser(currentHTTPSHandler: "com.google.Chrome"), .chrome)
+    XCTAssertEqual(store.selectedBrowser(currentHTTPSHandler: "org.chromium.Chromium"), .chromium)
+    XCTAssertEqual(
+      store.selectedBrowser(currentHTTPSHandler: "io.ungoogled-software.ungoogled-chromium"),
+      .ungoogledChromium
+    )
+  }
+
   func testFirstRunMapsOldStayfariHandlerToSafari() {
     let store = BrowserSelectionStore(defaults: MemoryBrowserSelectionDefaults())
 

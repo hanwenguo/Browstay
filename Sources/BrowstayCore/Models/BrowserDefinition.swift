@@ -4,6 +4,9 @@ public enum BrowserID: String, CaseIterable, Codable, Sendable {
   case safari
   case orion
   case helium
+  case chrome
+  case chromium
+  case ungoogledChromium
 }
 
 public enum BrowserNewWindowStrategy: String, Sendable {
@@ -57,10 +60,39 @@ public struct BrowserDefinition: Identifiable, Equatable, Sendable {
     newWindowStrategy: .chromiumWindow
   )
 
+  public static let chrome = BrowserDefinition(
+    id: .chrome,
+    displayName: "Google Chrome",
+    bundleIdentifier: "com.google.Chrome",
+    ownerNames: ["Google Chrome"],
+    newWindowStrategy: .chromiumWindow
+  )
+
+  public static let chromium = BrowserDefinition(
+    id: .chromium,
+    displayName: "Chromium",
+    bundleIdentifier: "org.chromium.Chromium",
+    ownerNames: ["Chromium"],
+    newWindowStrategy: .chromiumWindow
+  )
+
+  /// Installs as `Chromium.app` but has its own bundle identifier, so it needs
+  /// a definition separate from upstream Chromium.
+  public static let ungoogledChromium = BrowserDefinition(
+    id: .ungoogledChromium,
+    displayName: "Ungoogled Chromium",
+    bundleIdentifier: "io.ungoogled-software.ungoogled-chromium",
+    ownerNames: ["Chromium"],
+    newWindowStrategy: .chromiumWindow
+  )
+
   public static let supported: [BrowserDefinition] = [
     .safari,
     .orion,
-    .helium
+    .helium,
+    .chrome,
+    .chromium,
+    .ungoogledChromium
   ]
 
   public static func definition(for id: BrowserID) -> BrowserDefinition {
