@@ -21,6 +21,7 @@ public enum BrowserOpenError: Error, Equatable, LocalizedError {
 @MainActor
 public protocol BrowserWorkspaceOpening: AnyObject {
   func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL?
+  func isRunning(bundleIdentifier: String) -> Bool
   func open(_ urls: [URL], withApplicationAt applicationURL: URL) async throws
 }
 
@@ -34,6 +35,11 @@ public final class SystemBrowserWorkspace: BrowserWorkspaceOpening {
 
   public func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL? {
     workspace.urlForApplication(withBundleIdentifier: bundleIdentifier)
+  }
+
+  public func isRunning(bundleIdentifier: String) -> Bool {
+    NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+      .contains { !$0.isTerminated }
   }
 
   public func open(_ urls: [URL], withApplicationAt applicationURL: URL) async throws {
@@ -117,6 +123,14 @@ public final class BrowserOpener: BrowserOpening {
       throw BrowserOpenError.browserNotFound(browser.id)
     }
 
+    // A Chromium browser opens its own window when it launches, so creating
+    // another by script would leave two. Given the URL at launch, it opens one.
+    if browser.newWindowStrategy == .chromiumWindow,
+      !workspace.isRunning(bundleIdentifier: browser.bundleIdentifier) {
+      try await openNormally([url], in: browser)
+      return
+    }
+
     try scriptExecutor.execute(source: Self.newWindowScriptSource(for: url, browser: browser))
   }
 
@@ -165,20 +179,26 @@ public final class BrowserOpener: BrowserOpening {
     for browser: BrowserDefinition,
     within bounds: WindowBounds?
   ) -> String {
-    var lines = [
-      "tell application id \"\(browser.bundleIdentifier)\"",
-      "  activate"
-    ]
+    var lines = ["tell application id \"\(browser.bundleIdentifier)\""]
 
     switch browser.newWindowStrategy {
     case .safariDocument, .orionDocument:
       lines += [
+        "  activate",
         "  make new document",
         "  set newWindow to front window"
       ]
     case .chromiumWindow:
+      // A Chromium browser opens its own window when it launches. Use that
+      // window instead of adding a second one.
       lines += [
-        "  set newWindow to make new window with properties {mode:\"normal\"}"
+        "  set wasRunning to running",
+        "  activate",
+        "  if wasRunning or (count of windows) is 0 then",
+        "    set newWindow to make new window with properties {mode:\"normal\"}",
+        "  else",
+        "    set newWindow to front window",
+        "  end if"
       ]
     }
 

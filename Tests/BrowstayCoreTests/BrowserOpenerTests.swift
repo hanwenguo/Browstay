@@ -2,6 +2,39 @@ import Foundation
 import XCTest
 @testable import BrowstayCore
 
+@MainActor
+private final class FakeBrowserWorkspace: BrowserWorkspaceOpening {
+  let applicationURL: URL?
+  let isBrowserRunning: Bool
+  var opened: [(urls: [URL], applicationURL: URL)] = []
+
+  init(applicationURL: URL?, isRunning: Bool) {
+    self.applicationURL = applicationURL
+    self.isBrowserRunning = isRunning
+  }
+
+  func applicationURL(forBundleIdentifier bundleIdentifier: String) -> URL? {
+    applicationURL
+  }
+
+  func isRunning(bundleIdentifier: String) -> Bool {
+    isBrowserRunning
+  }
+
+  func open(_ urls: [URL], withApplicationAt applicationURL: URL) async throws {
+    opened.append((urls: urls, applicationURL: applicationURL))
+  }
+}
+
+@MainActor
+private final class SpyAppleScriptExecutor: AppleScriptExecuting {
+  var sources: [String] = []
+
+  func execute(source: String) throws {
+    sources.append(source)
+  }
+}
+
 final class BrowserOpenerTests: XCTestCase {
   func testAppleScriptStringLiteralEscapesQuotesBackslashesAndNewlines() {
     let literal = BrowserOpener.appleScriptStringLiteral("https://example.com/a\"b\\c\nnext")
@@ -65,10 +98,72 @@ final class BrowserOpenerTests: XCTestCase {
   func testChromeEmptyWindowScriptWithoutBoundsOnlyCreatesWindow() {
     XCTAssertEqual(BrowserOpener.emptyWindowScriptSource(for: .chrome, within: nil), """
     tell application id "com.google.Chrome"
+      set wasRunning to running
       activate
-      set newWindow to make new window with properties {mode:"normal"}
+      if wasRunning or (count of windows) is 0 then
+        set newWindow to make new window with properties {mode:"normal"}
+      else
+        set newWindow to front window
+      end if
     end tell
     """)
+  }
+
+  @MainActor
+  func testChromiumBrowsersGetTheURLAtLaunchWhenNotRunning() async throws {
+    let webURL = try XCTUnwrap(WebURL(URL(string: "https://example.com/cold")!))
+    let applicationURL = URL(fileURLWithPath: "/Applications/Browser.app")
+
+    for browser in [BrowserDefinition.chrome, .chromium, .ungoogledChromium, .helium] {
+      let workspace = FakeBrowserWorkspace(applicationURL: applicationURL, isRunning: false)
+      let executor = SpyAppleScriptExecutor()
+      let opener = BrowserOpener(workspace: workspace, scriptExecutor: executor)
+
+      try await opener.openInNewWindow(webURL, in: browser)
+
+      XCTAssertEqual(workspace.opened.map(\.urls), [[webURL.url]], browser.displayName)
+      XCTAssertEqual(workspace.opened.map(\.applicationURL), [applicationURL], browser.displayName)
+      XCTAssertEqual(executor.sources, [], browser.displayName)
+    }
+  }
+
+  @MainActor
+  func testChromiumBrowsersGetAScriptedWindowWhenRunning() async throws {
+    let webURL = try XCTUnwrap(WebURL(URL(string: "https://example.com/running")!))
+    let workspace = FakeBrowserWorkspace(
+      applicationURL: URL(fileURLWithPath: "/Applications/Browser.app"),
+      isRunning: true
+    )
+    let executor = SpyAppleScriptExecutor()
+    let opener = BrowserOpener(workspace: workspace, scriptExecutor: executor)
+
+    try await opener.openInNewWindow(webURL, in: .chrome)
+
+    XCTAssertEqual(workspace.opened.count, 0)
+    XCTAssertEqual(executor.sources, [BrowserOpener.newWindowScriptSource(for: webURL, browser: .chrome)])
+  }
+
+  @MainActor
+  func testDocumentBrowsersKeepTheirScriptedWindowWhenNotRunning() async throws {
+    let webURL = try XCTUnwrap(WebURL(URL(string: "https://example.com/document")!))
+
+    for browser in [BrowserDefinition.safari, .orion] {
+      let workspace = FakeBrowserWorkspace(
+        applicationURL: URL(fileURLWithPath: "/Applications/Browser.app"),
+        isRunning: false
+      )
+      let executor = SpyAppleScriptExecutor()
+      let opener = BrowserOpener(workspace: workspace, scriptExecutor: executor)
+
+      try await opener.openInNewWindow(webURL, in: browser)
+
+      XCTAssertEqual(workspace.opened.count, 0, browser.displayName)
+      XCTAssertEqual(
+        executor.sources,
+        [BrowserOpener.newWindowScriptSource(for: webURL, browser: browser)],
+        browser.displayName
+      )
+    }
   }
 
   func testSafariEmptyWindowScriptWithoutBoundsOnlyCreatesWindow() {
@@ -86,8 +181,13 @@ final class BrowserOpenerTests: XCTestCase {
 
     XCTAssertEqual(BrowserOpener.emptyWindowScriptSource(for: .helium, within: bounds), """
     tell application id "net.imput.helium"
+      set wasRunning to running
       activate
-      set newWindow to make new window with properties {mode:"normal"}
+      if wasRunning or (count of windows) is 0 then
+        set newWindow to make new window with properties {mode:"normal"}
+      else
+        set newWindow to front window
+      end if
       set {windowLeft, windowTop, windowRight, windowBottom} to bounds of newWindow
       set windowCenterX to (windowLeft + windowRight) / 2
       set windowCenterY to (windowTop + windowBottom) / 2

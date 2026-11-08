@@ -65,7 +65,10 @@ there.
 1. Quit the target browser.
 2. Open an HTTPS link from another app.
 
-Expected: the browser launches with a regular window on the current Desktop.
+Expected: the browser launches with one regular window showing the link on the
+current Desktop, plus any windows it restores from its last session.
+
+Repeat with ⌃⌥⌘N instead of a link. Expected: one window, not two.
 
 ### Automation Denied
 
