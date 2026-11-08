@@ -43,6 +43,34 @@ final class BrowserOpenerTests: XCTestCase {
     """)
   }
 
+  func testChromeAndChromiumNewWindowScriptsCreateNormalChromiumWindow() throws {
+    let webURL = try XCTUnwrap(WebURL(URL(string: "https://example.com/chromium")!))
+    let expectations: [(BrowserDefinition, String)] = [
+      (.chrome, "com.google.Chrome"),
+      (.chromium, "org.chromium.Chromium"),
+      (.ungoogledChromium, "io.ungoogled-software.ungoogled-chromium")
+    ]
+
+    for (browser, bundleIdentifier) in expectations {
+      XCTAssertEqual(BrowserOpener.newWindowScriptSource(for: webURL, browser: browser), """
+      tell application id "\(bundleIdentifier)"
+        activate
+        set newWindow to make new window with properties {mode:"normal"}
+        set URL of active tab of newWindow to "https://example.com/chromium"
+      end tell
+      """)
+    }
+  }
+
+  func testChromeEmptyWindowScriptWithoutBoundsOnlyCreatesWindow() {
+    XCTAssertEqual(BrowserOpener.emptyWindowScriptSource(for: .chrome, within: nil), """
+    tell application id "com.google.Chrome"
+      activate
+      set newWindow to make new window with properties {mode:"normal"}
+    end tell
+    """)
+  }
+
   func testSafariEmptyWindowScriptWithoutBoundsOnlyCreatesWindow() {
     XCTAssertEqual(BrowserOpener.emptyWindowScriptSource(for: .safari, within: nil), """
     tell application id "com.apple.Safari"

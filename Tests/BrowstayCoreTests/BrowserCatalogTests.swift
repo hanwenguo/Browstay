@@ -33,8 +33,36 @@ final class BrowserCatalogTests: XCTestCase {
         bundleIdentifier: "net.imput.helium",
         ownerNames: ["Helium"],
         newWindowStrategy: .chromiumWindow
+      ),
+      BrowserDefinition(
+        id: .chrome,
+        displayName: "Google Chrome",
+        bundleIdentifier: "com.google.Chrome",
+        ownerNames: ["Google Chrome"],
+        newWindowStrategy: .chromiumWindow
+      ),
+      BrowserDefinition(
+        id: .chromium,
+        displayName: "Chromium",
+        bundleIdentifier: "org.chromium.Chromium",
+        ownerNames: ["Chromium"],
+        newWindowStrategy: .chromiumWindow
+      ),
+      BrowserDefinition(
+        id: .ungoogledChromium,
+        displayName: "Ungoogled Chromium",
+        bundleIdentifier: "io.ungoogled-software.ungoogled-chromium",
+        ownerNames: ["Chromium"],
+        newWindowStrategy: .chromiumWindow
       )
     ])
+  }
+
+  func testSupportedDefinitionsHaveUniqueIdentifiersAndCoverEveryBrowserID() {
+    let supported = BrowserDefinition.supported
+
+    XCTAssertEqual(Set(supported.map(\.id)), Set(BrowserID.allCases))
+    XCTAssertEqual(Set(supported.map(\.bundleIdentifier)).count, supported.count)
   }
 
   func testInstalledBrowsersContainOnlyDefinitionsResolvedByWorkspace() {
